@@ -3,11 +3,12 @@ requires = ["setuptools>=61.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pytest-retry"
+name = "gg-pytest-retry"
 version = "1.6.2"
 description = "Adds the ability to retry flaky tests in CI environments"
 readme = "README.md"
 authors = [{ name = "str0zzapreti" }]
+maintainers = [{ name = "Mathieu Dupuy", email = "mathieu.dupuy@gitguardian.com" }]
 license = { file = "LICENSE" }
 classifiers = [
     "License :: OSI Approved :: MIT License",

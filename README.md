@@ -4,6 +4,20 @@
 pytest-retry is a plugin for Pytest which adds the ability to retry flaky tests,
 thereby improving the consistency of the test suite results. 
 
+## Why this fork?
+
+We want to use pytest-retry but also keep the previous behavior of our pytest_retry shell script, which was relaunching
+a test run with ` --exitfirst --last-failed` in case of failed tests. Which means that all failed tests got retried, and
+that retry opportunity stops as soon as a retried test fails. Out of the box, pytest-retry would not keep track failed
+retried tests and all tests would be retried as many times as the `--retries` option specifies, which that e.g. for
+`--retries 1` means potentially our 33k+ test suite would issue 33k retries, meaning 66k tests execution. Hence this 
+fork to reimplement our previous behavior.
+This is implemented in this fork with an internal failed retry counter and a `--max-failed-retries` option to control
+the number of allowed failed retries, set to 1 in GIM to emulate this behavior. In the case where pytest-xdist is used, 
+the counter is *per-process*. That is a compromise we decided to make, because having a global counter seemed
+technically too complicated.
+Upstream was contacted to integrate this behavior and did not seem interested.
+
 ## Requirements
 
 pytest-retry is designed for the latest versions of Python and Pytest. Python 3.9+

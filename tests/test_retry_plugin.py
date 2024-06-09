@@ -537,6 +537,30 @@ def test_attempts_are_always_available_from_item_stash(testdir):
     assert_outcomes(result, passed=1)
 
 
+
+def test_max_failed_retries_passes(testdir):
+    testdir.makepyfile(
+        """
+        a = []
+        def test_eventually_passes1():
+            a.append(1)
+            if not len(a) > 1:
+                raise AssertionError
+
+        def test_fails():
+            raise AssertionError
+
+        c = []
+        def test_eventually_passes3():
+            c.append(1)
+            if not len(c) > 1:
+                raise AssertionError
+        """
+    )
+    result = testdir.runpytest("--max-failed-retries", "1", "--retries", "1")
+
+    assert_outcomes(result, passed=1, retried=2, failed=2)
+
 def test_global_filtered_exception_is_retried(testdir):
     testdir.makepyfile(
         """

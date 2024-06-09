@@ -1,3 +1,4 @@
+import sys
 import pytest
 import bdb
 from time import sleep
@@ -64,6 +65,8 @@ class RetryManager:
         self.reporter: ReportHandler = OfflineReporter()
         self.trace_limit: Optional[int] = -1
         self.node_stats: dict[str, dict] = {}
+        self.failed_retries = 0
+        self.max_failed_retries = sys.maxsize
         self.messages = (
             " failed on attempt {attempt}! Retrying!\n\t",
             " failed after {attempt} attempts!\n\t",
@@ -196,6 +199,14 @@ def pytest_runtest_makereport(
     if not exception_filter(call.excinfo.type):  # type: ignore
         return
 
+    # if original_report.failed:
+    #     retry_manager.failed_retries += 1
+
+    print('xx retry_manager.failed_retries: ', retry_manager.failed_retries)
+    if retry_manager.failed_retries >= retry_manager.max_failed_retries:
+        print('short skipping')
+        return
+
     retries = flake_mark.kwargs.get("retries", Defaults.RETRIES)
     delay = flake_mark.kwargs.get("delay", Defaults.RETRY_DELAY)
     cumulative_timing = flake_mark.kwargs.get("cumulative_timing", Defaults.CUMULATIVE_TIMING)
@@ -244,10 +255,18 @@ def pytest_runtest_makereport(
         if has_interactive_exception(call):
             hook.pytest_exception_interact(node=item, call=call, report=retry_report)
 
+        print(retry_report.outcome)
+        if retry_report.failed:
+            print('increase retry_manager.failed_retries')
+            retry_manager.failed_retries += 1
+
+        print('zz retry_manager.failed_retries: ', retry_manager.failed_retries)
+
         attempts += 1
         should_keep_retrying = (
             not retry_report.passed
             and attempts <= retries
+            and retry_manager.failed_retries <= retry_manager.max_failed_retries
             and exception_filter(call.excinfo.type)  # type: ignore
         )
 
@@ -301,6 +320,12 @@ def pytest_configure(config: pytest.Config) -> None:
     if config.getoption("verbose"):
         # if pytest config has -v enabled, then don't limit traceback length
         retry_manager.trace_limit = None
+
+    max_failed_retries = config.getoption("max_failed_retries")
+
+    if max_failed_retries:
+        retry_manager.max_failed_retries = max_failed_retries
+
     Defaults.configure(config)
     Defaults.add("FILTERED_EXCEPTIONS", config.hook.pytest_set_filtered_exceptions() or [])
     Defaults.add("EXCLUDED_EXCEPTIONS", config.hook.pytest_set_excluded_exceptions() or [])
@@ -314,6 +339,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 RETRIES_HELP_TEXT = "number of times to retry failed tests. Defaults to 0."
+MAX_FAILED_RETRIES = "number of times to retry failed tests, globally. Defaults to 0."
 DELAY_HELP_TEXT = "configure a delay (in seconds) between retries."
 TIMING_HELP_TEXT = "if True, retry duration will be included in overall reported test duration"
 
@@ -330,6 +356,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help=RETRIES_HELP_TEXT,
     )
     group.addoption(
+        "--max-failed-retries",
+        action="store",
+        dest="max_failed_retries",
+        type=int,
+        help=MAX_FAILED_RETRIES,
+    )
+    group.addoption(
         "--retry-delay",
         action="store",
         dest="retry_delay",
@@ -344,6 +377,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help=TIMING_HELP_TEXT,
     )
     parser.addini("retries", RETRIES_HELP_TEXT, default=0, type="string")
+    parser.addini("max-failed-retries", MAX_FAILED_RETRIES, default=0, type="string")
     parser.addini("retry_delay", DELAY_HELP_TEXT, default=0, type="string")
     parser.addini("cumulative_timing", TIMING_HELP_TEXT, default=False, type="bool")
 
